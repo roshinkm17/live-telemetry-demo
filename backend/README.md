@@ -64,6 +64,28 @@ npm run serve
 
 The server will start on `http://localhost:3001` (or the port specified in your `.env` file).
 
+### Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage report
+npm run test:coverage
+```
+
+The test suite includes:
+
+- **Route Tests**: API endpoint testing with supertest
+- **Service Tests**: MissionService business logic testing
+- **Model Tests**: Mongoose model validation and query testing
+- **Integration Tests**: Database integration testing
+
+Tests use a separate test database (`live-telemetry-test`) to avoid affecting development data.
+
 ## 📡 API Endpoints
 
 ### Base URL
