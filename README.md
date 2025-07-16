@@ -8,25 +8,27 @@ A real-time drone telemetry monitoring system with live map visualization, missi
 
 Monitor all active and completed drone missions from a centralized dashboard with an interactive live map showing real-time drone position, telemetry data (battery level, altitude, GPS coordinates), and live streaming updates via WebSocket connection with instant battery warnings and mission status changes.
 
-> 📸 **Screenshot Placeholder**: Dashboard with mission list, interactive Leaflet map showing drone position marker and flight path, and real-time telemetry panel with battery percentage, coordinates, altitude, and connection status
+> https://github.com/user-attachments/assets/6d30722a-0edc-478b-8545-1bd83ecbf51a
 
 ### 🎯 Mission Management
 
 Start new missions, monitor progress, and end missions with a single click.
 
-> 📸 **Screenshot Placeholder**: Mission control panel with start/end buttons, mission ID display, and status indicators
+> <img width="1938" height="998" alt="image" src="https://github.com/user-attachments/assets/5ca83f27-5b9e-4036-b3fd-63e1868b8b82" />
 
 ### 📈 Historical Data Analysis
 
 View complete flight paths and telemetry history for completed missions.
 
-> 📸 **Screenshot Placeholder**: Mission history view showing flight path visualization and telemetry data charts
+> <img width="1839" height="898" alt="image" src="https://github.com/user-attachments/assets/f90c99a3-db5d-4eb3-9528-1fdb0cd10203" />
+
 
 ### 🔔 Smart Notifications
 
 Get instant alerts for low battery, mission completion, and system events.
 
-> 📸 **Screenshot Placeholder**: Toast notification showing low battery warning with battery icon and percentage
+> <img width="2282" height="1233" alt="image" src="https://github.com/user-attachments/assets/b61355e0-25b9-48eb-ac9f-cf33af183eb8" />
+
 
 ## 🏗️ Architecture
 
