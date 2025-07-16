@@ -3,6 +3,7 @@ import type {
   EndMissionResponseType,
   GetAllMissionsResponseType,
   StartMissionResponseType,
+  GetMissionTelemetryResponseType,
 } from "./types";
 
 export const startMission = async () => {
@@ -29,4 +30,16 @@ export const getMission = async (missionId: string) => {
     `/api/missions/${missionId}`
   );
   return response.data.mission;
+};
+
+export const getMissionTelemetry = async (
+  missionId: string,
+  limit?: number
+) => {
+  const params = limit ? { limit: limit.toString() } : {};
+  const response = await api.get<GetMissionTelemetryResponseType>(
+    `/api/missions/${missionId}/telemetry`,
+    { params }
+  );
+  return response.data.telemetry;
 };

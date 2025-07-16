@@ -1,7 +1,11 @@
 import { useParams, useNavigate } from "react-router-dom";
 import TelemetryMapData from "../components/telemetry-data";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { useEndMission, useGetMission } from "../hooks/useMission";
+import {
+  useEndMission,
+  useGetMission,
+  useGetMissionTelemetry,
+} from "../hooks/useMission";
 import { useState, useEffect, useCallback } from "react";
 import { DroneStatus } from "@/enums/mission-status";
 import type { MissionCompletionData } from "./types";
@@ -33,6 +37,12 @@ const MissionView = () => {
   const [missionCompleted, setMissionCompleted] =
     useState<MissionCompletionData | null>(null);
   const [lowBatteryToastShown, setLowBatteryToastShown] = useState(false);
+
+  // Fetch telemetry history for completed missions
+  const { data: telemetryHistory } = useGetMissionTelemetry(
+    missionId || "",
+    mission?.status === DroneStatus.COMPLETED ? 1000 : undefined
+  );
 
   const shouldConnectWebSocket =
     mission && mission.status !== DroneStatus.COMPLETED;
@@ -156,6 +166,9 @@ const MissionView = () => {
             longitude={lastMessage?.longitude ?? 0}
             altitude={lastMessage?.altitude ?? 0}
             battery={lastMessage?.battery ?? 0}
+            telemetryHistory={telemetryHistory}
+            showFlightPath={mission?.status === DroneStatus.COMPLETED}
+            isLiveData={mission?.status === DroneStatus.IN_MISSION}
           />
         </div>
         <div className="col-span-1 font-mono">

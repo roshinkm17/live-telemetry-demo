@@ -25,6 +25,21 @@ export interface TelemetryData {
   longitude: number;
 }
 
+export interface TelemetryHistoryData {
+  timestamp: string;
+  battery: number;
+  latitude: number;
+  longitude: number;
+  altitude: number;
+}
+
+export interface GetMissionTelemetryResponseType {
+  success: boolean;
+  missionId: string;
+  count: number;
+  telemetry: TelemetryHistoryData[];
+}
+
 export interface EndMissionResponseType {
   mission: MissionType;
   success: boolean;

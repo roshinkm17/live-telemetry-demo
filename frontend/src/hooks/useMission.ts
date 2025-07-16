@@ -4,6 +4,7 @@ import {
   endMission,
   getAllMissions,
   getMission,
+  getMissionTelemetry,
 } from "@/api/mission";
 
 export const useStartMission = () => {
@@ -49,5 +50,13 @@ export const useGetMission = (missionId: string) => {
   return useQuery({
     queryKey: ["mission", missionId],
     queryFn: () => getMission(missionId),
+  });
+};
+
+export const useGetMissionTelemetry = (missionId: string, limit?: number) => {
+  return useQuery({
+    queryKey: ["mission-telemetry", missionId, limit],
+    queryFn: () => getMissionTelemetry(missionId, limit),
+    enabled: !!missionId,
   });
 };
