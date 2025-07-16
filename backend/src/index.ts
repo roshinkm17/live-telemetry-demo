@@ -1,11 +1,21 @@
 import express, { Express } from "express";
 import { Server } from "http";
 import WebSocket from "ws";
+import cors from "cors";
 import { DroneRoutes } from "./routes";
 import database from "./config/database";
 import missionService from "./services/MissionService";
+import { DroneStatus } from "./enums";
 
 const app: Express = express();
+
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
@@ -44,6 +54,16 @@ const startServer = async () => {
                   type: "error",
                   message: "Mission not found",
                   missionId: data.missionId,
+                })
+              );
+              return;
+            }
+
+            if (mission.status === DroneStatus.COMPLETED) {
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  message: "Mission already completed",
                 })
               );
               return;

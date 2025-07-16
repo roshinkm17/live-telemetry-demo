@@ -20,7 +20,7 @@ export class MissionService {
     const savedMission = await mission.save();
     console.log(`Mission created: (ID: ${missionId})`);
 
-    // Start telemetry updates immediately for this mission
+    // Initialize telemetry data for this mission
     this.initializeMissionTelemetry(missionId);
     this.startTelemetryUpdates(missionId);
 
@@ -83,6 +83,16 @@ export class MissionService {
     this.missionWebSockets.get(missionId)!.add(ws);
     console.log(`📡 WebSocket added to mission ${missionId}`);
 
+    // Start telemetry updates if not already running
+    console.log(this.missionIntervals);
+    if (!this.missionIntervals.has(missionId)) {
+      console.log(
+        `🚀 Starting telemetry updates for mission ${missionId} (first client connected)`
+      );
+      this.initializeMissionTelemetry(missionId);
+      this.startTelemetryUpdates(missionId);
+    }
+
     // Send initial mission data immediately
     this.sendMissionUpdate(missionId);
 
@@ -141,19 +151,31 @@ export class MissionService {
   }
 
   private startTelemetryUpdates(missionId: string): void {
+    console.log("Starting telemetry updates for mission", missionId);
     const interval = setInterval(async () => {
       try {
         const telemetry = this.missionTelemetry.get(missionId);
+        console.log("Telemetry", telemetry);
         if (!telemetry) return;
 
         // Update telemetry with realistic changes
         const updatedTelemetry = this.updateTelemetryData(telemetry);
         this.missionTelemetry.set(missionId, updatedTelemetry);
 
+        // Check if battery is depleted and auto-end mission
+        if (updatedTelemetry.battery <= 0) {
+          console.log(
+            `🔋 Battery depleted for mission ${missionId}. Auto-ending mission.`
+          );
+          await this.handleBatteryDepletion(missionId);
+          return; // Stop further telemetry updates
+        }
+
         // Store telemetry in database
         await this.storeTelemetryHistory(missionId, updatedTelemetry);
 
         // Send to all connected WebSockets
+        console.log("Sending telemetry to all connected WebSockets");
         this.broadcastTelemetry(missionId, updatedTelemetry);
       } catch (error) {
         console.error(
@@ -165,6 +187,54 @@ export class MissionService {
 
     this.missionIntervals.set(missionId, interval);
     console.log(`🔄 Started telemetry updates for mission ${missionId}`);
+  }
+
+  private async handleBatteryDepletion(missionId: string): Promise<void> {
+    try {
+      // Stop telemetry updates
+      this.stopTelemetryUpdates(missionId);
+
+      // End the mission
+      const endedMission = await this.endMission(missionId);
+
+      if (endedMission) {
+        // Notify all connected clients about battery depletion
+        this.broadcastBatteryDepletion(missionId, endedMission);
+
+        console.log(
+          `✅ Mission ${missionId} automatically ended due to battery depletion`
+        );
+      }
+    } catch (error) {
+      console.error(
+        `Error handling battery depletion for mission ${missionId}:`,
+        error
+      );
+    }
+  }
+
+  private broadcastBatteryDepletion(
+    missionId: string,
+    mission: IMission
+  ): void {
+    const missionWs = this.missionWebSockets.get(missionId);
+    if (missionWs) {
+      const message = JSON.stringify({
+        type: "battery_depleted",
+        missionId: missionId,
+        message: "Mission automatically ended due to battery depletion",
+        endTime: mission.endTime,
+        totalFlightTime: mission.totalFlightTime,
+        status: mission.status,
+        timestamp: new Date(),
+      });
+
+      missionWs.forEach((ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(message);
+        }
+      });
+    }
   }
 
   private stopTelemetryUpdates(missionId: string): void {
