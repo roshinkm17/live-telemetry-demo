@@ -6,16 +6,20 @@ import {
 } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import MissionView from "./pages/MissionView";
+import { Toaster } from "sonner";
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/mission/:missionId" element={<MissionView />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+    <>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/mission/:missionId" element={<MissionView />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Router>
+      <Toaster position="bottom-right" richColors />
+    </>
   );
 }
 

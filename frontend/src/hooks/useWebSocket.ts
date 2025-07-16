@@ -32,7 +32,7 @@ export const useWebSocket = (missionId: string) => {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("WebSocket connected ✅");
+      console.log("WebSocket connected");
       setIsConnected(true);
 
       const subscribeMessage = {
@@ -54,7 +54,6 @@ export const useWebSocket = (missionId: string) => {
           console.log("Telemetry data received:", message.data);
           setLastMessage(message.data || null);
 
-          // Update battery level
           if (message.data?.battery !== undefined) {
             setBatteryLevel(message.data.battery);
             console.log(`Battery level: ${message.data.battery}%`);
@@ -66,7 +65,6 @@ export const useWebSocket = (missionId: string) => {
           );
           setMissionEnded(true);
           setIsConnected(false);
-          // The backend has already ended the mission, so we just need to update UI
         } else if (message.type === "error") {
           console.error("WebSocket error:", message.message);
         }
@@ -76,7 +74,7 @@ export const useWebSocket = (missionId: string) => {
     };
 
     ws.onclose = () => {
-      console.log("WebSocket disconnected ❌");
+      console.log("WebSocket disconnected");
       setIsConnected(false);
     };
 

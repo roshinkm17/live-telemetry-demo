@@ -7,10 +7,14 @@ import {
 } from "@/api/mission";
 
 export const useStartMission = () => {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: startMission,
     onSuccess: (data) => {
       console.log("Mission started successfully:", data);
+      // Invalidate missions list to refresh data
+      queryClient.invalidateQueries({ queryKey: ["missions"] });
     },
     onError: (error) => {
       console.error("Failed to start mission:", error);

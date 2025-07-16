@@ -1,99 +1,126 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Button } from "../components/ui/button";
-import TelemetryData from "../components/telemetry-data";
+import TelemetryMapData from "../components/telemetry-data";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useEndMission, useGetMission } from "../hooks/useMission";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DroneStatus } from "@/enums/mission-status";
+import type { MissionCompletionData } from "./types";
+import { BackButton } from "@/components/back-button";
+import { NotFound } from "@/components/404";
+import { Badge } from "@/components/ui/badge";
+import {
+  Battery,
+  BatteryLow,
+  BatteryWarning,
+  BatteryMedium,
+  BatteryFull,
+  Check,
+  Copy,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
+import { formatDate, formatDuration } from "@/lib/date-utils";
+import { MISSION_COMPLETION_REASONS } from "@/constants/mission";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
-interface MissionCompletionData {
-  endTime: string;
-  totalFlightTime: number;
-  status: string;
-  reason?: string;
-}
-
-function MissionView() {
+const MissionView = () => {
   const { missionId } = useParams<{ missionId: string }>();
   const navigate = useNavigate();
-  const endMission = useEndMission();
+  const { mutateAsync: endMission } = useEndMission();
+  const [isCopied, setIsCopied] = useState(false);
   const { data: mission, isLoading } = useGetMission(missionId || "");
   const [missionCompleted, setMissionCompleted] =
     useState<MissionCompletionData | null>(null);
+  const [lowBatteryToastShown, setLowBatteryToastShown] = useState(false);
 
-  // Check if mission is already completed
+  const shouldConnectWebSocket =
+    mission && mission.status !== DroneStatus.COMPLETED;
+  const { isConnected, lastMessage, batteryLevel, missionEnded, disconnect } =
+    useWebSocket(shouldConnectWebSocket ? missionId || "" : "");
+
   useEffect(() => {
-    if (mission && mission.status === DroneStatus.COMPLETED) {
+    if (mission?.status === DroneStatus.COMPLETED) {
       setMissionCompleted({
         endTime: mission.endTime || new Date().toISOString(),
         totalFlightTime: mission.totalFlightTime || 0,
         status: mission.status,
-        reason: "Previously completed",
+        reason: MISSION_COMPLETION_REASONS.PREVIOUSLY_COMPLETED,
       });
     }
   }, [mission]);
 
-  const handleEndMission = async () => {
+  useEffect(() => {
+    if (
+      shouldConnectWebSocket &&
+      batteryLevel !== null &&
+      batteryLevel <= 25 &&
+      !lowBatteryToastShown &&
+      !missionCompleted
+    ) {
+      toast.error("Low Battery", {
+        description: `Battery level is at ${batteryLevel.toFixed(
+          1
+        )}%. Mission may end soon.`,
+        duration: Infinity,
+        dismissible: true,
+        icon: <BatteryWarning className="w-4 h-4" />,
+      });
+      setLowBatteryToastShown(true);
+    }
+  }, [
+    batteryLevel,
+    shouldConnectWebSocket,
+    lowBatteryToastShown,
+    missionCompleted,
+  ]);
+
+  useEffect(() => {
+    if (missionEnded && !missionCompleted) {
+      setMissionCompleted({
+        endTime: new Date().toISOString(),
+        totalFlightTime: 0,
+        status: "COMPLETED",
+        reason: MISSION_COMPLETION_REASONS.BATTERY_DEPLETED,
+      });
+    }
+  }, [missionEnded, missionCompleted]);
+
+  const handleEndMission = useCallback(async () => {
     if (!missionId) return;
 
     try {
-      // Disconnect WebSocket first
       disconnect();
-
-      // Call API to end mission
-      const result = await endMission.mutateAsync(missionId);
-
-      // Show completion data
+      const result = await endMission(missionId);
       setMissionCompleted({
         endTime: result.endTime ?? "",
         totalFlightTime: result.totalFlightTime ?? 0,
         status: result.status,
-        reason: "Manually ended",
+        reason: MISSION_COMPLETION_REASONS.MANUALLY_ENDED,
       });
-
       console.log("Mission ended successfully:", result);
     } catch (error) {
       console.error("Failed to end mission:", error);
     }
+  }, [missionId, endMission, disconnect]);
+
+  const getBatteryIcon = (level: number | null) => {
+    if (level === null) return Battery;
+    if (level <= 10) return BatteryLow;
+    if (level <= 25) return BatteryWarning;
+    if (level <= 50) return BatteryMedium;
+    return BatteryFull;
   };
 
-  // Only connect to WebSocket if mission is not completed
-  const shouldConnectWebSocket =
-    mission && mission.status !== DroneStatus.COMPLETED;
-
-  const { isConnected, lastMessage, batteryLevel, missionEnded, disconnect } =
-    useWebSocket(shouldConnectWebSocket ? missionId || "" : "");
-
-  // Handle mission ended by backend (battery depletion)
-  if (missionEnded && !missionCompleted) {
-    setMissionCompleted({
-      endTime: new Date().toISOString(),
-      totalFlightTime: 0, // Will be updated from backend response
-      status: "COMPLETED",
-      reason: "Battery depleted",
-    });
-  }
-
-  const getBatteryColor = (level: number | null) => {
-    if (level === null) return "bg-gray-200";
-    if (level <= 10) return "bg-red-500";
-    if (level <= 25) return "bg-orange-500";
-    if (level <= 50) return "bg-yellow-500";
-    return "bg-green-500";
-  };
-
-  const getBatteryTextColor = (level: number | null) => {
-    if (level === null) return "text-gray-600";
-    if (level <= 25) return "text-white";
-    return "text-black";
-  };
-
-  // Only disconnect when user clicks Back to Dashboard
   const handleBackToDashboard = () => {
-    if (shouldConnectWebSocket && isConnected) {
-      disconnect();
-    }
+    if (shouldConnectWebSocket && isConnected) disconnect();
     navigate("/");
+  };
+
+  const handleCopyMissionId = () => {
+    navigator.clipboard.writeText(missionId || "");
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   if (isLoading) {
@@ -108,155 +135,154 @@ function MissionView() {
 
   if (!mission) {
     return (
-      <div className="container mx-auto p-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="outline" onClick={handleBackToDashboard}>
-            ← Back to Dashboard
-          </Button>
-          <h1 className="text-3xl font-bold">Mission Not Found</h1>
-        </div>
-        <div className="text-center py-8">
-          <p className="text-gray-600">
-            Mission with ID "{missionId}" could not be found.
-          </p>
-        </div>
-      </div>
+      <NotFound
+        handleBackToDashboard={handleBackToDashboard}
+        missionId={missionId}
+      />
     );
   }
 
   return (
     <div className="container mx-auto p-8">
       <div className="flex items-center gap-4 mb-8">
-        <Button variant="outline" onClick={handleBackToDashboard}>
-          ← Back to Dashboard
-        </Button>
-        <h1 className="text-3xl font-bold">Mission: {missionId}</h1>
-
-        {/* Only show connection status if mission is active */}
-        {shouldConnectWebSocket && (
-          <div
-            className={`px-3 py-1 rounded-full text-sm ${
-              isConnected
-                ? "bg-green-100 text-green-800"
-                : "bg-red-100 text-red-800"
-            }`}
-          >
-            {isConnected ? "🟢 Connected" : "🔴 Disconnected"}
-          </div>
-        )}
-
-        {/* Battery Indicator - only show if mission is active */}
-        {shouldConnectWebSocket &&
-          batteryLevel !== null &&
-          !missionCompleted && (
-            <div className="flex items-center gap-2">
-              <div className="text-sm font-medium">Battery:</div>
-              <div
-                className={`px-2 py-1 rounded text-xs font-bold ${getBatteryColor(
-                  batteryLevel
-                )} ${getBatteryTextColor(batteryLevel)}`}
-              >
-                {batteryLevel.toFixed(1)}%
-              </div>
-              {batteryLevel <= 10 && (
-                <div className="text-red-600 text-sm font-medium animate-pulse">
-                  ⚠️ Low Battery
-                </div>
-              )}
-            </div>
-          )}
-
-        {/* End Mission Button - only show if mission is active */}
-        {!missionCompleted &&
-          shouldConnectWebSocket &&
-          isConnected &&
-          mission?.status === DroneStatus.IN_MISSION && (
-            <Button
-              variant="destructive"
-              onClick={handleEndMission}
-              disabled={endMission.isPending}
-            >
-              {endMission.isPending ? "Ending..." : "End Mission"}
-            </Button>
-          )}
+        <BackButton handleBackToDashboard={handleBackToDashboard} />
+        <h1 className="text-3xl font-bold font-mono">{missionId}</h1>
       </div>
 
       <div className="grid gap-8 grid-cols-4">
-        <div className="flex flex-col gap-4 col-span-3">
-          <div className="flex flex-col gap-4">
-            <TelemetryData />
-          </div>
+        <div className="col-span-3 flex flex-col gap-4">
+          <TelemetryMapData
+            latitude={lastMessage?.latitude ?? 0}
+            longitude={lastMessage?.longitude ?? 0}
+            altitude={lastMessage?.altitude ?? 0}
+            battery={lastMessage?.battery ?? 0}
+          />
         </div>
-        <div className="col-span-1">
+        <div className="col-span-1 font-mono">
           <div className="p-4 border rounded-lg">
             <h2 className="text-lg font-semibold mb-4">Mission Details</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Mission ID: {missionId}
+            <p className="text-sm text-gray-600 mb-4 flex items-center gap-2">
+              {missionId}{" "}
+              {isCopied ? (
+                <Check className="w-4 h-4 cursor-pointer" />
+              ) : (
+                <Copy
+                  className="w-4 h-4 cursor-pointer"
+                  onClick={handleCopyMissionId}
+                />
+              )}
             </p>
 
             {missionCompleted ? (
               <div className="space-y-3">
-                <h3 className="font-medium text-green-700">
+                <Badge className="font-bold bg-green-100 text-green-800 hover:bg-green-200">
                   Mission Completed
-                </h3>
+                </Badge>
                 <div className="space-y-2 text-sm">
-                  <p>
-                    <strong>Status:</strong> {missionCompleted.status}
-                  </p>
-                  <p>
-                    <strong>End Time:</strong>{" "}
-                    {new Date(missionCompleted.endTime).toLocaleString()}
-                  </p>
-                  <p>
-                    <strong>Total Flight Time:</strong>{" "}
-                    {missionCompleted.totalFlightTime} seconds
-                  </p>
-                  {missionCompleted.reason === "Battery depleted" && (
-                    <p className="text-red-600 font-medium">
-                      ⚠️ Mission ended due to battery depletion
-                    </p>
-                  )}
-                  {missionCompleted.reason === "Manually ended" && (
-                    <p className="text-blue-600 font-medium">
-                      ✅ Mission manually ended
-                    </p>
-                  )}
-                  {missionCompleted.reason === "Previously completed" && (
-                    <p className="text-gray-600 font-medium">
-                      📋 Mission was already completed
-                    </p>
-                  )}
+                  <DataItem
+                    label="Ended at"
+                    value={formatDate(missionCompleted.endTime)}
+                  />
+                  <DataItem
+                    label="Total Flight Time"
+                    value={formatDuration(missionCompleted.totalFlightTime)}
+                  />
+                  <MissionCompleted missionCompleted={missionCompleted} />
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
-                <h3 className="font-medium">Mission Status</h3>
-                <p className="text-sm">Status: {mission.status}</p>
-
+              <div className="flex flex-row gap-2 h-fit">
                 {shouldConnectWebSocket && (
-                  <>
-                    <h3 className="font-medium mt-4">WebSocket Status</h3>
-                    <p className="text-sm">
-                      Status: {isConnected ? "Connected" : "Disconnected"}
-                    </p>
-                  </>
+                  <Badge
+                    variant="secondary"
+                    className={`px-2 py-1 flex items-center gap-2 w-fit ${
+                      isConnected
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {isConnected ? (
+                      <Wifi className="w-4 h-4" />
+                    ) : (
+                      <WifiOff className="w-4 h-4" />
+                    )}
+                    {isConnected ? "Connected" : "Disconnected"}
+                  </Badge>
                 )}
-
-                {lastMessage && shouldConnectWebSocket && (
-                  <div className="mt-4">
-                    <h3 className="font-medium mb-2">Latest Telemetry</h3>
-                    <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                      {JSON.stringify(lastMessage, null, 2)}
-                    </pre>
-                  </div>
-                )}
+                <Badge
+                  variant="secondary"
+                  className={`px-2 py-1 flex items-center gap-2 w-fit ${
+                    batteryLevel && batteryLevel <= 25
+                      ? "bg-red-100 text-red-800"
+                      : "bg-green-100 text-green-800"
+                  }`}
+                >
+                  {(() => {
+                    const BatteryIcon = getBatteryIcon(batteryLevel);
+                    return <BatteryIcon className="w-4 h-4" />;
+                  })()}
+                  {Math.round(batteryLevel ?? 0)}%
+                </Badge>
               </div>
+            )}
+            {lastMessage && shouldConnectWebSocket && (
+              <div className="mt-4">
+                <h3 className="font-medium mb-2">Latest Telemetry</h3>
+                <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                  {JSON.stringify(lastMessage, null, 2)}
+                </pre>
+              </div>
+            )}
+            {!missionCompleted && (
+              <Button
+                variant="destructive"
+                className="w-full mt-4"
+                onClick={handleEndMission}
+              >
+                End Mission
+              </Button>
             )}
           </div>
         </div>
       </div>
     </div>
   );
-}
+};
+
+const MissionCompleted = ({
+  missionCompleted,
+}: {
+  missionCompleted: MissionCompletionData;
+}) => {
+  return (
+    <>
+      {missionCompleted.reason ===
+        MISSION_COMPLETION_REASONS.BATTERY_DEPLETED && (
+        <p className="text-red-600 font-medium">
+          ⚠️ Mission ended due to battery depletion
+        </p>
+      )}
+      {missionCompleted.reason ===
+        MISSION_COMPLETION_REASONS.MANUALLY_ENDED && (
+        <p className="text-blue-600 font-medium">✅ Mission manually ended</p>
+      )}
+      {missionCompleted.reason ===
+        MISSION_COMPLETION_REASONS.PREVIOUSLY_COMPLETED && (
+        <p className="text-gray-600 font-medium">
+          📋 Mission was already completed
+        </p>
+      )}
+    </>
+  );
+};
+
+const DataItem = ({ label, value }: { label: string; value: string }) => {
+  return (
+    <div className="flex items-center gap-2 justify-between">
+      <strong className="font-bold">{label}:</strong>
+      <span className="font-mono text-right">{value}</span>
+    </div>
+  );
+};
 
 export default MissionView;

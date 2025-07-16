@@ -6,7 +6,9 @@ import type {
 } from "./types";
 
 export const startMission = async () => {
-  const response = await api.post<StartMissionResponseType>("/start-mission");
+  const response = await api.post<StartMissionResponseType>(
+    "/api/start-mission"
+  );
   return response.data.mission;
 };
 
