@@ -26,7 +26,7 @@ const startServer = async () => {
     await database.connect();
 
     const server: Server = app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`Server running on http://localhost:${PORT}`);
     });
 
     // Initialize routes
@@ -37,7 +37,7 @@ const startServer = async () => {
     const wss = new WebSocket.Server({ server });
 
     wss.on("connection", (ws: WebSocket) => {
-      console.log("Client connected ✅");
+      console.log("Client connected");
 
       ws.on("message", async (message: string) => {
         try {
@@ -48,7 +48,7 @@ const startServer = async () => {
             const mission = await missionService.getMission(data.missionId);
 
             if (!mission) {
-              console.log(`❌ Mission not found: ${data.missionId}`);
+              console.log(`Mission not found: ${data.missionId}`);
               ws.send(
                 JSON.stringify({
                   type: "error",
@@ -69,7 +69,7 @@ const startServer = async () => {
               return;
             }
 
-            console.log(`✅ Mission found, subscribing to: ${data.missionId}`);
+            console.log(`Mission found, subscribing to: ${data.missionId}`);
             missionService.addWebSocketToMission(data.missionId, ws);
 
             // Send confirmation message
@@ -101,11 +101,11 @@ const startServer = async () => {
       });
 
       ws.on("close", () => {
-        console.log("Client disconnected ❌");
+        console.log("Client disconnected");
       });
 
       ws.on("error", (error) => {
-        console.error("WebSocket error ❌:", error);
+        console.error("WebSocket error:", error);
       });
     });
 
@@ -120,7 +120,7 @@ const startServer = async () => {
       });
     });
   } catch (error) {
-    console.error("❌ Failed to start server:", error);
+    console.error("Failed to start server:", error);
     process.exit(1);
   }
 };

@@ -28,7 +28,11 @@ const MissionHistoryItem = ({ mission }: { mission: MissionType }) => {
             : "default"
         }
       >
-        {mission.status}
+        {mission.status === DroneStatus.COMPLETED
+          ? "Completed"
+          : mission.status === DroneStatus.IN_MISSION
+          ? "In Mission"
+          : "Pending"}
       </Badge>
       {mission.missionId}
     </Button>

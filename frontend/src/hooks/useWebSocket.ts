@@ -21,7 +21,6 @@ export const useWebSocket = (missionId: string) => {
   const disconnect = () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.close();
-      console.log("WebSocket manually disconnected");
     }
   };
 
@@ -32,7 +31,6 @@ export const useWebSocket = (missionId: string) => {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("WebSocket connected");
       setIsConnected(true);
 
       const subscribeMessage = {
@@ -40,29 +38,19 @@ export const useWebSocket = (missionId: string) => {
         missionId: missionId,
       };
       ws.send(JSON.stringify(subscribeMessage));
-      console.log(`Subscribed to mission: ${missionId}`);
     };
 
     ws.onmessage = (event) => {
       try {
         const message: WebSocketMessage = JSON.parse(event.data);
-        console.log("WebSocket message received:", message);
 
-        if (message.type === "subscribed") {
-          console.log("Successfully subscribed to mission telemetry");
-        } else if (message.type === "telemetry") {
-          console.log("Telemetry data received:", message.data);
+        if (message.type === "telemetry") {
           setLastMessage(message.data || null);
 
           if (message.data?.battery !== undefined) {
             setBatteryLevel(message.data.battery);
-            console.log(`Battery level: ${message.data.battery}%`);
           }
         } else if (message.type === "battery_depleted") {
-          console.log(
-            "Battery depleted - mission automatically ended:",
-            message
-          );
           setMissionEnded(true);
           setIsConnected(false);
         } else if (message.type === "error") {

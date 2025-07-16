@@ -28,29 +28,41 @@ import { MISSION_COMPLETION_REASONS } from "@/constants/mission";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
+const BATTERY_LOW_THRESHOLD = 25;
+
+const getBatteryIcon = (level: number | null) => {
+  if (level === null) return Battery;
+  if (level <= 10) return BatteryLow;
+  if (level <= 25) return BatteryWarning;
+  if (level <= 50) return BatteryMedium;
+  return BatteryFull;
+};
+
 const MissionView = () => {
   const { missionId } = useParams<{ missionId: string }>();
   const navigate = useNavigate();
   const { mutateAsync: endMission } = useEndMission();
-  const [isCopied, setIsCopied] = useState(false);
   const { data: mission, isLoading } = useGetMission(missionId || "");
-  const [missionCompleted, setMissionCompleted] =
-    useState<MissionCompletionData | null>(null);
-  const [lowBatteryToastShown, setLowBatteryToastShown] = useState(false);
-
-  // Fetch telemetry history for completed missions
   const { data: telemetryHistory } = useGetMissionTelemetry(
     missionId || "",
     mission?.status === DroneStatus.COMPLETED ? 1000 : undefined
   );
 
+  const [missionCompleted, setMissionCompleted] =
+    useState<MissionCompletionData | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
+  const [lowBatteryToastShown, setLowBatteryToastShown] = useState(false);
+
   const shouldConnectWebSocket =
     mission && mission.status !== DroneStatus.COMPLETED;
+
   const { isConnected, lastMessage, batteryLevel, missionEnded, disconnect } =
     useWebSocket(shouldConnectWebSocket ? missionId || "" : "");
 
+  const isMissionCompleted = mission?.status === DroneStatus.COMPLETED;
+
   useEffect(() => {
-    if (mission?.status === DroneStatus.COMPLETED) {
+    if (isMissionCompleted) {
       setMissionCompleted({
         endTime: mission.endTime || new Date().toISOString(),
         totalFlightTime: mission.totalFlightTime || 0,
@@ -58,13 +70,18 @@ const MissionView = () => {
         reason: MISSION_COMPLETION_REASONS.PREVIOUSLY_COMPLETED,
       });
     }
-  }, [mission]);
+  }, [
+    isMissionCompleted,
+    mission?.endTime,
+    mission?.status,
+    mission?.totalFlightTime,
+  ]);
 
   useEffect(() => {
     if (
       shouldConnectWebSocket &&
       batteryLevel !== null &&
-      batteryLevel <= 25 &&
+      batteryLevel <= BATTERY_LOW_THRESHOLD &&
       !lowBatteryToastShown &&
       !missionCompleted
     ) {
@@ -108,19 +125,10 @@ const MissionView = () => {
         status: result.status,
         reason: MISSION_COMPLETION_REASONS.MANUALLY_ENDED,
       });
-      console.log("Mission ended successfully:", result);
-    } catch (error) {
-      console.error("Failed to end mission:", error);
+    } catch {
+      toast.error("Failed to end mission");
     }
   }, [missionId, endMission, disconnect]);
-
-  const getBatteryIcon = (level: number | null) => {
-    if (level === null) return Battery;
-    if (level <= 10) return BatteryLow;
-    if (level <= 25) return BatteryWarning;
-    if (level <= 50) return BatteryMedium;
-    return BatteryFull;
-  };
 
   const handleBackToDashboard = () => {
     if (shouldConnectWebSocket && isConnected) disconnect();
@@ -168,7 +176,6 @@ const MissionView = () => {
             battery={lastMessage?.battery ?? 0}
             telemetryHistory={telemetryHistory}
             showFlightPath={mission?.status === DroneStatus.COMPLETED}
-            isLiveData={mission?.status === DroneStatus.IN_MISSION}
           />
         </div>
         <div className="col-span-1 font-mono">
@@ -225,7 +232,7 @@ const MissionView = () => {
                 <Badge
                   variant="secondary"
                   className={`px-2 py-1 flex items-center gap-2 w-fit ${
-                    batteryLevel && batteryLevel <= 25
+                    batteryLevel && batteryLevel <= BATTERY_LOW_THRESHOLD
                       ? "bg-red-100 text-red-800"
                       : "bg-green-100 text-green-800"
                   }`}

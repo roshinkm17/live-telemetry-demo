@@ -7,21 +7,10 @@ import {
   Polyline,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import L from "leaflet";
 import { useEffect, useRef, useMemo } from "react";
-import type {
-  TelemetryData as TelemetryDataType,
-  TelemetryHistoryData,
-} from "@/api/types";
-
-delete (L.Icon.Default.prototype as unknown as { _getIconUrl: unknown })
-  ._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
+import type { TelemetryHistoryData } from "@/api/types";
+import { L } from "./leaflet-config";
+import type { TelemetryMapDataProps } from "./types";
 
 const MapUpdater: React.FC<{
   latitude: number;
@@ -60,15 +49,13 @@ const FlightPathBoundsUpdater: React.FC<{
 
   useEffect(() => {
     if (telemetryHistory.length > 0) {
-      // Create bounds from all telemetry points
       const bounds = L.latLngBounds(
         telemetryHistory.map((point) => [point.latitude, point.longitude])
       );
 
-      // Fit map to bounds with padding
       map.fitBounds(bounds, {
-        padding: [20, 20], // Add 20px padding on all sides
-        maxZoom: 18, // Don't zoom in too much
+        padding: [20, 20],
+        maxZoom: 18,
         animate: true,
       });
     }
@@ -77,99 +64,22 @@ const FlightPathBoundsUpdater: React.FC<{
   return null;
 };
 
-const DirectionalArrows: React.FC<{
-  telemetryHistory: TelemetryHistoryData[];
-  isLiveData?: boolean;
-}> = ({ telemetryHistory, isLiveData = false }) => {
-  const arrowPositions = useMemo(() => {
-    if (telemetryHistory.length < 2) return [];
-
-    const positions: Array<{
-      position: [number, number];
-      bearing: number;
-      timestamp: string;
-    }> = [];
-
-    // For live data, show fewer arrows to avoid clutter
-    const maxArrows = isLiveData ? 4 : 8;
-    const step = Math.max(1, Math.floor(telemetryHistory.length / maxArrows));
-
-    for (let i = step; i < telemetryHistory.length - step; i += step) {
-      const current = telemetryHistory[i];
-      const next = telemetryHistory[i + 1];
-
-      if (next) {
-        // Calculate bearing (direction) between two points
-        const lat1 = (current.latitude * Math.PI) / 180;
-        const lat2 = (next.latitude * Math.PI) / 180;
-        const deltaLon = ((next.longitude - current.longitude) * Math.PI) / 180;
-
-        const y = Math.sin(deltaLon) * Math.cos(lat2);
-        const x =
-          Math.cos(lat1) * Math.sin(lat2) -
-          Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
-        const bearing = (Math.atan2(y, x) * 180) / Math.PI;
-
-        positions.push({
-          position: [current.latitude, current.longitude],
-          bearing: (bearing + 360) % 360,
-          timestamp: current.timestamp,
-        });
-      }
-    }
-
-    return positions;
-  }, [telemetryHistory, isLiveData]);
-
+const TelemetryPopup: React.FC<{
+  altitude: number;
+  battery: number;
+}> = ({ altitude, battery }) => {
   return (
-    <>
-      {arrowPositions.map((arrow, index) => (
-        <Marker
-          key={index}
-          position={arrow.position}
-          icon={L.divIcon({
-            className: "directional-arrow",
-            html: `
-              <div style="
-                width: 0; 
-                height: 0; 
-                border-left: 6px solid transparent;
-                border-right: 6px solid transparent;
-                border-bottom: 12px solid ${isLiveData ? "#10b981" : "#2563eb"};
-                transform: rotate(${arrow.bearing}deg);
-                filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
-              "></div>
-            `,
-            iconSize: [12, 12],
-            iconAnchor: [6, 6],
-          })}
-        >
-          <Popup>
-            <div>
-              <span className="text-sm m-0 font-bold">
-                {isLiveData ? "Live Direction" : "Direction"}
-              </span>
-              <br />
-              <span className="text-sm m-0">
-                {new Date(arrow.timestamp).toLocaleString()}
-              </span>
-              <br />
-              <span className="text-sm m-0">
-                Bearing: {Math.round(arrow.bearing)}°
-              </span>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-    </>
+    <Popup>
+      <div>
+        <span className="text-sm m-0 font-bold">Altitude: </span>
+        <span className="text-sm m-0">{Math.round(altitude)} m</span>
+        <br />
+        <span className="text-sm m-0 font-bold">Battery: </span>
+        <span className="text-sm m-0">{Math.round(battery * 100) / 100}%</span>
+      </div>
+    </Popup>
   );
 };
-
-interface TelemetryMapDataProps extends TelemetryDataType {
-  telemetryHistory?: TelemetryHistoryData[];
-  showFlightPath?: boolean;
-  isLiveData?: boolean;
-}
 
 const TelemetryMapData: React.FC<TelemetryMapDataProps> = ({
   latitude,
@@ -178,47 +88,22 @@ const TelemetryMapData: React.FC<TelemetryMapDataProps> = ({
   battery,
   telemetryHistory = [],
   showFlightPath = false,
-  isLiveData = false,
 }) => {
   const mapRef = useRef<L.Map>(null);
-  const liveTelemetryRef = useRef<TelemetryHistoryData[]>([]);
 
-  // Track live telemetry data
-  useEffect(() => {
-    if (isLiveData && latitude !== 0 && longitude !== 0) {
-      const newPoint: TelemetryHistoryData = {
-        latitude,
-        longitude,
-        altitude,
-        battery,
-        timestamp: new Date().toISOString(),
-      };
-
-      liveTelemetryRef.current.push(newPoint);
-
-      // Keep only last 20 points for live data to avoid clutter
-      if (liveTelemetryRef.current.length > 20) {
-        liveTelemetryRef.current = liveTelemetryRef.current.slice(-20);
-      }
-    }
-  }, [latitude, longitude, altitude, battery, isLiveData]);
-
-  // Use live telemetry for arrows if no history provided
-  const telemetryForArrows =
-    telemetryHistory.length > 0 ? telemetryHistory : liveTelemetryRef.current;
-
-  // Create flight path coordinates from telemetry history
-  const flightPathCoordinates = telemetryHistory.map(
-    (point) => [point.latitude, point.longitude] as [number, number]
+  const flightPathCoordinates = useMemo(
+    () =>
+      telemetryHistory.map(
+        (point) => [point.latitude, point.longitude] as [number, number]
+      ),
+    [telemetryHistory]
   );
 
-  // Get center coordinates - use current position or first history point
   const centerLat = latitude || telemetryHistory[0]?.latitude || 0;
   const centerLng = longitude || telemetryHistory[0]?.longitude || 0;
 
-  // Calculate bounds for flight path
   const hasFlightPath = showFlightPath && telemetryHistory.length > 1;
-  const initialZoom = hasFlightPath ? 10 : 18; // Lower zoom for flight path to show more area
+  const initialZoom = hasFlightPath ? 10 : 18;
 
   return (
     <div>
@@ -243,36 +128,10 @@ const TelemetryMapData: React.FC<TelemetryMapDataProps> = ({
           />
         )}
 
-        {/* Directional Arrows for Historical Data */}
-        {showFlightPath && telemetryHistory.length > 2 && (
-          <DirectionalArrows
-            telemetryHistory={telemetryHistory}
-            isLiveData={false}
-          />
-        )}
-
-        {/* Directional Arrows for Live Data */}
-        {isLiveData && telemetryForArrows.length > 2 && (
-          <DirectionalArrows
-            telemetryHistory={telemetryForArrows}
-            isLiveData={true}
-          />
-        )}
-
         {/* Current Position Marker */}
         {(latitude !== 0 || longitude !== 0) && (
           <Marker position={[latitude || 0, longitude || 0]}>
-            <Popup>
-              <div>
-                <span className="text-sm m-0 font-bold">Altitude: </span>
-                <span className="text-sm m-0">{Math.round(altitude)} m</span>
-                <br />
-                <span className="text-sm m-0 font-bold">Battery: </span>
-                <span className="text-sm m-0">
-                  {Math.round(battery * 100) / 100}%
-                </span>
-              </div>
-            </Popup>
+            <TelemetryPopup altitude={altitude} battery={battery} />
           </Marker>
         )}
 
@@ -291,15 +150,10 @@ const TelemetryMapData: React.FC<TelemetryMapDataProps> = ({
                 iconAnchor: [6, 6],
               })}
             >
-              <Popup>
-                <div>
-                  <span className="text-sm m-0 font-bold">Start Point</span>
-                  <br />
-                  <span className="text-sm m-0">
-                    {new Date(telemetryHistory[0].timestamp).toLocaleString()}
-                  </span>
-                </div>
-              </Popup>
+              <TelemetryPopup
+                altitude={telemetryHistory[0].altitude}
+                battery={telemetryHistory[0].battery}
+              />
             </Marker>
 
             {telemetryHistory.length > 1 && (
@@ -315,17 +169,14 @@ const TelemetryMapData: React.FC<TelemetryMapDataProps> = ({
                   iconAnchor: [6, 6],
                 })}
               >
-                <Popup>
-                  <div>
-                    <span className="text-sm m-0 font-bold">End Point</span>
-                    <br />
-                    <span className="text-sm m-0">
-                      {new Date(
-                        telemetryHistory[telemetryHistory.length - 1].timestamp
-                      ).toLocaleString()}
-                    </span>
-                  </div>
-                </Popup>
+                <TelemetryPopup
+                  altitude={
+                    telemetryHistory[telemetryHistory.length - 1].altitude
+                  }
+                  battery={
+                    telemetryHistory[telemetryHistory.length - 1].battery
+                  }
+                />
               </Marker>
             )}
           </>

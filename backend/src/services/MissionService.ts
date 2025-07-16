@@ -81,13 +81,13 @@ export class MissionService {
     }
 
     this.missionWebSockets.get(missionId)!.add(ws);
-    console.log(`📡 WebSocket added to mission ${missionId}`);
+    console.log(`WebSocket added to mission ${missionId}`);
 
     // Start telemetry updates if not already running
     console.log(this.missionIntervals);
     if (!this.missionIntervals.has(missionId)) {
       console.log(
-        `🚀 Starting telemetry updates for mission ${missionId} (first client connected)`
+        `Starting telemetry updates for mission ${missionId} (first client connected)`
       );
       this.initializeMissionTelemetry(missionId);
       this.startTelemetryUpdates(missionId);
@@ -165,7 +165,7 @@ export class MissionService {
         // Check if battery is depleted and auto-end mission
         if (updatedTelemetry.battery <= 0) {
           console.log(
-            `🔋 Battery depleted for mission ${missionId}. Auto-ending mission.`
+            `Battery depleted for mission ${missionId}. Auto-ending mission.`
           );
           await this.handleBatteryDepletion(missionId);
           return; // Stop further telemetry updates
@@ -186,7 +186,7 @@ export class MissionService {
     }, 2000);
 
     this.missionIntervals.set(missionId, interval);
-    console.log(`🔄 Started telemetry updates for mission ${missionId}`);
+    console.log(`Started telemetry updates for mission ${missionId}`);
   }
 
   private async handleBatteryDepletion(missionId: string): Promise<void> {
@@ -202,7 +202,7 @@ export class MissionService {
         this.broadcastBatteryDepletion(missionId, endedMission);
 
         console.log(
-          `✅ Mission ${missionId} automatically ended due to battery depletion`
+          `Mission ${missionId} automatically ended due to battery depletion`
         );
       }
     } catch (error) {
@@ -242,7 +242,7 @@ export class MissionService {
     if (interval) {
       clearInterval(interval);
       this.missionIntervals.delete(missionId);
-      console.log(`⏹️ Stopped telemetry updates for mission ${missionId}`);
+      console.log(`Stopped telemetry updates for mission ${missionId}`);
     }
   }
 
